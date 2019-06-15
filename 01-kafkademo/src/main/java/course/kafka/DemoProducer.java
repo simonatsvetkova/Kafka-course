@@ -38,6 +38,7 @@ public class DemoProducer {
         producer = new KafkaProducer<String, Customer>(kafkaProps);
     }
 
+
     public void run() {
         producer.initTransactions();
 
@@ -47,43 +48,10 @@ public class DemoProducer {
 
                 Customer cust = new Customer(i,"ABC Ltd." + i ,"12345678" + i, "Sofia 100" + i);
 
-//                Map<String, String> customerData = new HashMap<>();
-//                customerData.put("customerID", "" + i);
-//                customerData.put("name", "customer-" + i);
-//                customerData.put("address", "address-" + i);
-//                int[] bulstat = new int[9];
-//                Arrays.fill(bulstat, i);
-//                customerData.put("eik", Arrays.asList(bulstat).stream().map(n -> "" + n).collect(Collectors.joining("")));
-
-
                 ProducerRecord<String, Customer> record = new ProducerRecord<>("events-replicated", "" + i, cust);
 
-                /**
-
-                 Future<RecordMetadata>futureResult = producer.send(record);
-                 try {
-                 RecordMetadata metadata = futureResult.get();
-                 log.info("topic: {}, partition {}, offset {}, timestamp: {}", metadata.topic(), metadata.partition(), metadata.offset(), metadata.timestamp());
-                 } catch (InterruptedException e) {
-                 e.printStackTrace();
-                 } catch (ExecutionException e) {
-                 e.printStackTrace();
-                 }
-                 */
 
 
-                /**
-                 producer.send(record, new Callback() {
-                @Override public void onCompletion(RecordMetadata metadata, Exception e) {
-                if (e == null) {
-                log.info("topic: {}, partition {}, offset {}, timestamp: {}", metadata.topic(), metadata.partition(), metadata.offset(), metadata.timestamp());
-                } else {
-                log.error("Error while producing", e);
-                }
-
-                }
-                });
-                 */
 
                 Future<RecordMetadata> futureResult = producer.send(record, ((metadata, exception) -> {
                     if (exception != null) {

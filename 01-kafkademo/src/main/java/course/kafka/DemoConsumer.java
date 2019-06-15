@@ -26,7 +26,7 @@ public class DemoConsumer {
         props.put("bootstrap.servers", "localhost:9092");
         props.put("group.id", "event-consumer");
         props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-        props.put("value.deserializer", "course.kafka.serialization.CustomerDeserializer");
+        props.put("value.deserializer", "course.kafka.serialization.JsonDeserializer");
         consumer = new KafkaConsumer<>(props);
     }
 
