@@ -1,18 +1,21 @@
 package course.kafka;
 
-import course.kafka.model.Customer;
 import course.kafka.model.StockPrice;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.json.simple.JSONObject;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static course.kafka.StockPriceConstants.PRICES_TOPIC;
 
 @Slf4j
 
@@ -35,7 +38,14 @@ public class StockPriceConsumer {
     }
 
     public void run() {
-        consumer.subscribe(Collections.singletonList("prices"));
+        consumer.subscribe(Collections.singletonList(PRICES_TOPIC),
+                new StockPriceRebalanceListener(consumer));
+//        consumer.poll(Duration.ofMillis(100));
+//        consumer.seekToBeginning(Arrays.asList(
+//                new TopicPartition(PRICES_TOPIC, 0),
+//                new TopicPartition(PRICES_TOPIC, 1),
+//                new TopicPartition(PRICES_TOPIC, 2)
+//        ));
 
         while(true) {
             ConsumerRecords<String, StockPrice> records = consumer.poll(Duration.ofMillis(100));
