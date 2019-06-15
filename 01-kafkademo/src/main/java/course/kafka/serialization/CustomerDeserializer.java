@@ -27,7 +27,7 @@ public class CustomerDeserializer implements Deserializer<Customer> {
         try {
             return mapper.readValue(data, Customer.class);
         } catch (IOException e) {
-            log.error("Error deserializing object to JSON", e);
+            log.error("Error deserializing object from JSON", e);
         }
         return new Customer();
     }

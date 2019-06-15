@@ -23,7 +23,7 @@ public class JsonSerializer<T> implements Serializer<T> {
         try {
             return mapper.writeValueAsBytes(data);
         } catch (JsonProcessingException e) {
-           log.error("Error serializing JSON data", e);
+           log.error("Error serializing object to JSON", e);
         }
         return "".getBytes();
     }

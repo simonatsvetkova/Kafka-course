@@ -1,6 +1,7 @@
 package course.kafka;
 
 import course.kafka.model.Customer;
+import course.kafka.model.StockPrice;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -15,32 +16,44 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 
-public class DemoConsumer {
+public class StockPriceConsumer {
 
     private Properties props = new Properties();
-    private KafkaConsumer<String, Customer> consumer;
+    private KafkaConsumer<String, StockPrice> consumer;
     private Map<String, Integer> eventMap = new ConcurrentHashMap<>();
 
 
-    public DemoConsumer() {
+    public StockPriceConsumer() {
         props.put("bootstrap.servers", "localhost:9092");
-        props.put("group.id", "event-consumer");
+        props.put("group.id", "stock-price-consumer");
         props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer", "course.kafka.serialization.JsonDeserializer");
-        props.put("value.deserializer.class", "course.kafka.model.Customer");
+        props.put("value.deserializer.class", "course.kafka.model.StockPrice");
+        props.put("enable.auto.commit", "true");
+
         consumer = new KafkaConsumer<>(props);
     }
 
     public void run() {
-        consumer.subscribe(Collections.singletonList("events-replicated"));
+        consumer.subscribe(Collections.singletonList("prices"));
 
         while(true) {
-            ConsumerRecords<String, Customer> records = consumer.poll(Duration.ofMillis(100));
+            ConsumerRecords<String, StockPrice> records = consumer.poll(Duration.ofMillis(100));
             if (records.count() > 0) {
                 log.info("Fetched {} records", records.count());
-                for (ConsumerRecord<String, Customer> rec : records) {
-                    log.debug("Record - topic {}, partition {}, offset {}, timestamp {}, value: {}", rec.topic(), rec.partition(), rec.offset(), rec.timestamp(), rec.value());
-                    log.info("{} -> {}, {}, {}, {}", rec.key(), rec.value().getId(), rec.value().getName(), rec.value().getEik(), rec.value().getAddress());
+                for (ConsumerRecord<String, StockPrice> rec : records) {
+                    log.debug("Record - topic {}, partition {}, offset {}, timestamp {}, value: {}",
+                            rec.topic(),
+                            rec.partition(),
+                            rec.offset(),
+                            rec.timestamp(),
+                            rec.value());
+                    log.info("{} -> {}, {}, {}, {}",
+                            rec.key(),
+                            rec.value().getId(),
+                            rec.value().getSymbol(),
+                            rec.value().getName(),
+                            rec.value().getPrice());
                     int updatedCount = 1;
                     if (eventMap.containsKey(rec.key())) {
                         updatedCount = eventMap.get(rec.key()) + 1;
@@ -55,7 +68,7 @@ public class DemoConsumer {
     }
 
     public static void main(String[] args) {
-        DemoConsumer consumer = new DemoConsumer();
+        StockPriceConsumer consumer = new StockPriceConsumer();
         consumer.run();
 
     }
