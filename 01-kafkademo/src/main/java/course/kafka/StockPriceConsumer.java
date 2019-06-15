@@ -32,7 +32,7 @@ public class StockPriceConsumer {
         props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer", "course.kafka.serialization.JsonDeserializer");
         props.put("value.deserializer.class", "course.kafka.model.StockPrice");
-        props.put("enable.auto.commit", "true");
+//        props.put("enable.auto.commit", "true");
 
         consumer = new KafkaConsumer<>(props);
     }
@@ -71,6 +71,9 @@ public class StockPriceConsumer {
                     eventMap.put(rec.key(), updatedCount);
 
                 }
+
+                consumer.commitSync();
+
                 JSONObject json = new JSONObject(eventMap);
                 log.info(json.toJSONString());
             }
