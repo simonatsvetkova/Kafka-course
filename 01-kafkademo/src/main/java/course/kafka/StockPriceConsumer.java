@@ -72,7 +72,14 @@ public class StockPriceConsumer {
 
                 }
 
-                consumer.commitSync();
+                consumer.commitAsync((offsets, exception) -> {
+                    if (exception != null) {
+                        log.error("Error commiting offsets", exception);
+                        return;
+                    }
+
+                    log.debug("Offsets commited: {}", offsets);
+                });
 
                 JSONObject json = new JSONObject(eventMap);
                 log.info(json.toJSONString());
