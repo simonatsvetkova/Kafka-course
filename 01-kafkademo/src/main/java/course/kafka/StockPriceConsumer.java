@@ -5,12 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.json.simple.JSONObject;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +25,8 @@ public class StockPriceConsumer {
     private Properties props = new Properties();
     private KafkaConsumer<String, StockPrice> consumer;
     private Map<String, Integer> eventMap = new ConcurrentHashMap<>();
+    private Map<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
+    private int count = 0;
 
 
     public StockPriceConsumer() {
@@ -71,16 +74,25 @@ public class StockPriceConsumer {
                         }
                         eventMap.put(rec.key(), updatedCount);
 
-                    }
+                        //update current offsets
 
-                    consumer.commitAsync((offsets, exception) -> {
-                        if (exception != null) {
-                            log.error("Error committing offsets", exception);
-                            return;
+                        currentOffsets.put(new TopicPartition(rec.topic(), rec.partition()), new OffsetAndMetadata(rec.offset() + 1));
+
+
+
+                        if (++count % 3 == 0) {
+                            consumer.commitAsync(currentOffsets, (offsets, exception) -> {
+                                if (exception != null) {
+                                    log.error("Error committing offsets", exception);
+                                    return;
+                                }
+
+                                log.debug("Offsets committed: {}", offsets);
+                            });
                         }
 
-                        log.debug("Offsets committed: {}", offsets);
-                    });
+
+                    }
 
                     JSONObject json = new JSONObject(eventMap);
                     log.info(json.toJSONString());
