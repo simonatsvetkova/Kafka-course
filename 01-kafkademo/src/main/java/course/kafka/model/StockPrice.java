@@ -3,6 +3,8 @@ package course.kafka.model;
 
 import lombok.*;
 
+import java.util.Date;
+
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
@@ -15,4 +17,6 @@ public class StockPrice {
     private String name;
     @NonNull
     private Double price;
+
+    private Date timestamp;
 }
