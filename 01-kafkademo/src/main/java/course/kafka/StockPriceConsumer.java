@@ -79,20 +79,13 @@ public class StockPriceConsumer {
                         currentOffsets.put(new TopicPartition(rec.topic(), rec.partition()), new OffsetAndMetadata(rec.offset() + 1));
 
 
-
                         if (++count % 3 == 0) {
-                            consumer.commitAsync(currentOffsets, (offsets, exception) -> {
-                                if (exception != null) {
-                                    log.error("Error committing offsets", exception);
-                                    return;
-                                }
-
-                                log.debug("Offsets committed: {}", offsets);
-                            });
+                            commitOffsets();
                         }
 
 
                     }
+                    commitOffsets();
 
                     JSONObject json = new JSONObject(eventMap);
                     log.info(json.toJSONString());
@@ -109,6 +102,16 @@ public class StockPriceConsumer {
             }
 
         }
+    }
+
+    private void commitOffsets() {
+        consumer.commitAsync(currentOffsets, (offsets, exception) -> {
+            if (exception != null) {
+                log.error("Error commiting offsets: {}, exception: {}", offsets, exception);
+                return;
+            }
+            log.debug("Offsets commited: {}", offsets);
+        });
     }
 
     public static void main(String[] args) {
