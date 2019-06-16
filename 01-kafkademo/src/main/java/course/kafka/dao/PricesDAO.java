@@ -2,10 +2,13 @@ package course.kafka.dao;
 
 import course.kafka.model.StockPrice;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 
 import java.sql.*;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
@@ -16,71 +19,59 @@ public class PricesDAO {
     public static final String DB_USER = "sa";
     public static final String DB_PASSWORD = "SApass123";
 
-    public static final String SELECT_ALL_PRICES_SQL = "SELECT * FROM Prices";
-    public static final String INSERT_INTO_PRICES_SQL = "INSERT INTO Prices (symbol, name, price) VALUES (?, ?, ?)";
-
-
+    public static final String SELECT_ALL_PRICES_SQL =
+            "SELECT * FROM Prices";
+    public static final String INSERT_INTO_PRICES_SQL =
+            "INSERT INTO Prices (symbol, name, price) VALUES (?, ?, ?)";
+    public static final String SELECT_ALL_OFFSETS_SQL =
+            "SELECT * FROM Offsets";
+    public static final String SELECT_OFFSETS_BY_CONSUMER_SQL =
+            "SELECT * FROM Offsets WHERE [consumer]=?";
+    public static final String SELECT_OFFSETS_COUNT_BY_CONSUMER_TOPIC_PARTITION_SQL =
+            "SELECT COUNT(*) FROM Offsets WHERE [consumer]=? AND [topic]=? AND [partition]=?";
+    public static final String INSERT_OFFSET_SQL =
+            "INSERT INTO Offsets ([consumer], [topic], [partition], [offset]) VALUES (?, ?, ?, ?)";
+    public static final String UPDATE_OFFSET_SQL =
+            "UPDATE Offsets SET [offset]=? WHERE [consumer]=? AND [topic]=? AND [partition]=?";
     private Connection con;
     private PreparedStatement selectAllStatement;
     private PreparedStatement insertIntoStatement;
-
+    private PreparedStatement selectAllOffsetsStatement;
+    private PreparedStatement selectOffsetsByConsumerStatement;
+    private PreparedStatement selectOffsetsCountByConsumerTopicPartititonStatement;
+    private PreparedStatement insertOffsetStatement;
+    private PreparedStatement updateOffsetStatement;
 
     List<StockPrice> prices = new CopyOnWriteArrayList<>();
-
-/*
-    public void reload() {
-        try {
-            Class.forName(DB_DRIVER);
-        } catch (ClassNotFoundException ex) {
-            log.error("MS SQL Server DB Driver not found", ex);
-        }
-
-        try(Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-            Statement statement = con.createStatement();
-        ) {
-            ResultSet rs = statement.executeQuery("SELECT * FROM Prices");
-            while (rs.next()) {
-                prices.add(new StockPrice(
-                        rs.getInt("id"),
-                        rs.getString("symbol"),
-                        rs.getString("name"),
-                        rs.getDouble("price"),
-                        rs.getTimestamp("timestamp")
-                ));
-            }
-
-        } catch (SQLException e) {
-            log.error("Connection to MS SQL Server URL: {} cannot be established.\n{}", DB_URL, e);
-        }
-    }
-
- */
-
 
     public void init() throws SQLException {
         try {
             Class.forName(DB_DRIVER);
         } catch (ClassNotFoundException ex) {
-            log.error("MS SQL Server db driver not found", ex);
+            log.error("MS SQLServer db driver not found.", ex);
         }
-
         try {
             con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
             selectAllStatement = con.prepareStatement(SELECT_ALL_PRICES_SQL);
             insertIntoStatement = con.prepareStatement(INSERT_INTO_PRICES_SQL);
+            selectAllOffsetsStatement = con.prepareStatement(SELECT_ALL_OFFSETS_SQL);
+            selectOffsetsByConsumerStatement = con.prepareStatement(SELECT_OFFSETS_BY_CONSUMER_SQL);
+            selectOffsetsCountByConsumerTopicPartititonStatement = con.prepareStatement(SELECT_OFFSETS_COUNT_BY_CONSUMER_TOPIC_PARTITION_SQL);
+            insertOffsetStatement = con.prepareStatement(INSERT_OFFSET_SQL);
+            updateOffsetStatement = con.prepareStatement(UPDATE_OFFSET_SQL);
         } catch (SQLException e) {
-            log.error("Connection to MS SQL Server URL: {} cannot be established.\n{}", DB_URL, e);
+            log.error("Connection to MS SQLServer URL:{} can not be established.\n{}", DB_URL, e);
             throw e;
         }
     }
 
-    public void close() {
+    public void close(){
         try {
             if (!insertIntoStatement.isClosed()) {
-                insertIntoStatement.close();
+                insertIntoStatement.close();;
             }
             if (!selectAllStatement.isClosed()) {
-                selectAllStatement.close();
+                selectAllStatement.close();;
             }
             if (!con.isClosed()) {
                 con.close();
@@ -93,7 +84,7 @@ public class PricesDAO {
     public void reload() throws SQLException {
         try {
             ResultSet rs = selectAllStatement.executeQuery();
-            while (rs.next()) {
+            while(rs.next()) {
                 prices.add(new StockPrice(
                         rs.getInt("id"),
                         rs.getString("symbol"),
@@ -108,25 +99,46 @@ public class PricesDAO {
         }
     }
 
-
     public int insertPrice(StockPrice price) throws SQLException {
         insertIntoStatement.setString(1, price.getSymbol());
         insertIntoStatement.setString(2, price.getName());
-        insertIntoStatement.setDouble(3, price.getPrice());
+        insertIntoStatement.setDouble(3,price.getPrice());
         return insertIntoStatement.executeUpdate();
     }
 
-    public void printData() {
-        prices.forEach(price -> {
-                    System.out.printf("| %10d | %5.5s | %20.20s | %10.2f | %td.%<tm.%<ty-%<TH:%<TM:%<TS | \n",
-                            price.getId(),
-                            price.getSymbol(),
-                            price.getName(),
-                            price.getPrice(),
-                            price.getTimestamp());
-                }
-        );
+    public int updateOffset(String consumerGroupId,
+                            Map<TopicPartition, OffsetAndMetadata> currentOffsets) throws SQLException {
+        int counter = 0;
+        for(TopicPartition tp: currentOffsets.keySet()) {
+            selectOffsetsCountByConsumerTopicPartititonStatement.setString(1, consumerGroupId);
+            selectOffsetsCountByConsumerTopicPartititonStatement.setString(2, tp.topic());
+            selectOffsetsCountByConsumerTopicPartititonStatement.setInt(3, tp.partition());
+            ResultSet rs = selectOffsetsCountByConsumerTopicPartititonStatement.executeQuery();
+            if(rs.next() && rs.getInt(0) > 0) {
+                updateOffsetStatement.setLong(1, currentOffsets.get(tp).offset());
+                updateOffsetStatement.setString(2, consumerGroupId);
+                updateOffsetStatement.setString(3, tp.topic());
+                updateOffsetStatement.setInt(4, tp.partition());
+                counter += updateOffsetStatement.executeUpdate();
+            }
+            else {
+                insertOffsetStatement.setString(1, consumerGroupId);
+                insertOffsetStatement.setString(2, tp.topic());
+                insertOffsetStatement.setInt(3, tp.partition());
+                insertOffsetStatement.setLong(4, currentOffsets.get(tp).offset());
+                counter += insertIntoStatement.executeUpdate();
+            }
+        }
+        return counter;
+    }
 
+    public void printData(){
+        prices.forEach(price -> {
+            System.out.printf(
+                    "| %10d | %5.5s | %20.20s | %10.2f | %td.%<tm.%<ty %<tH:%<tM:%<tS |\n",
+                    price.getId(), price.getSymbol(), price.getName(), price.getPrice(),
+                    price.getTimestamp());
+        });
     }
 
     public static void main(String[] args) {
@@ -154,5 +166,3 @@ public class PricesDAO {
         }
     }
 }
-
-
