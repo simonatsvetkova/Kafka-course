@@ -3,27 +3,24 @@ package course.kafka;
 import course.kafka.dao.PricesDAO;
 import course.kafka.model.StockPrice;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.json.simple.JSONObject;
 
 import java.sql.SQLException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static course.kafka.StockPriceConstants.GROUP_ID_PROP;
 import static course.kafka.StockPriceConstants.PRICES_TOPIC;
 
 @Slf4j
-public class StockPriceConsumer {
+public class StockPriceConsumer implements Runnable{
     public static final String GROUP_ID = "stock-price-consumer";
     private Properties props = new Properties();
     private KafkaConsumer<String, StockPrice> consumer;
@@ -34,8 +31,10 @@ public class StockPriceConsumer {
     private PricesDAO dao;
 
 
-    public StockPriceConsumer() throws SQLException {
+    public StockPriceConsumer(int consumerId) throws SQLException {
+        log.info("Creating consumer with ID: {}", GROUP_ID + "-" + consumerId);
         props.put("bootstrap.servers", "localhost:9092");
+        props.put("client.id", GROUP_ID + "-" + consumerId);
         props.put(GROUP_ID_PROP, GROUP_ID);
         props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer", "course.kafka.serialization.JsonDeserializer");
@@ -56,13 +55,14 @@ public class StockPriceConsumer {
                 log.info("Thread Join interrupted.");
             }
         }));
+
     }
 
     public void run() {
         consumer.subscribe(Collections.singletonList(PRICES_TOPIC),
                 new StockPriceRebalanceListener(consumer, dao, GROUP_ID));
         try {
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 ConsumerRecords<String, StockPrice> records = consumer.poll(Duration.ofMillis(1000));
                 if (records.count() > 0) {
                     log.info("Fetched {} records:", records.count());
@@ -109,7 +109,7 @@ public class StockPriceConsumer {
                 }
 
             }
-        } catch (WakeupException we) {
+        } catch (WakeupException | InterruptException ex) {
             log.info("Application tearing down...");
         } catch (Exception e) {
             log.error("Error polling data.");
@@ -131,7 +131,7 @@ public class StockPriceConsumer {
     }
 
     public static void main(String[] args) throws SQLException {
-        StockPriceConsumer demoConsumer = new StockPriceConsumer();
+        StockPriceConsumer demoConsumer = new StockPriceConsumer(0);
         demoConsumer.run();
     }
 }
